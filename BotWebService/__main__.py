@@ -144,12 +144,3 @@ if __name__ == "__main__":  # pragma: no cover
     if port is not None:
         port = int(port)
     web.run_app(app, port=port)
-
-if __name__ == "__main__":  # pragma: no cover
-    app = web.Application()
-
-    app.router.add_routes(routes)
-    port = os.environ.get("PORT")
-    if port is not None:
-        port = int(port)
-    web.run_app(app, port=port)
