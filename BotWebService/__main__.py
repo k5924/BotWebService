@@ -19,7 +19,7 @@ async def issue_opened_event(event, gh, *args, **kwargs):
     url = event.data["issue"]["comments_url"]
     author = event.data["issue"]["user"]["login"]
 
-    message = f"Thanks @{author}!\n\n\nI will report this to Kamran ASAP!\n\n\n-- Maid-Chan."
+    message = f"Thanks @{author}!\n\n\nI will report this to Kamran ASAP!\n\n\nHeres a cookie: 🍪  -- Maid-Chan."
     await gh.post(url, data={"body": message})
 
     await rate_limit_comment(event, gh)
@@ -32,7 +32,7 @@ async def rate_limit_comment(event, gh):
     reset_datetime = rate_limit.reset_datetime
 
     if remaining <= 10:
-	message = f"\**:WARNING::WARNING::WARNING::WARNING::WARNING:WARNING**:\n\n\nMaid-Chan is reaching near my API limit.\nI have only {remaining} of {total} API requests left. They will reset on {reset_datetime} (GMT), which is in {reset_datetime - datetime.datetime.now(datetime.timezone.gmt)}."
+	message = f"\**:WARNING::WARNING::WARNING::WARNING::WARNING:WARNING**:\n\n\nMaid-Chan is reaching near my API limit.\nI have only {remaining} of {total} API requests left. They will reset on {reset_datetime} (GMT), which is in {reset_datetime - datetime.datetime.now(datetime.timezone.gmt)}\n\n\nCookies will OVERLOAD NOW: 🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪."
     await gh.post(comments_url, data={"body": message})
 
 
