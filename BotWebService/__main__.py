@@ -1,79 +1,80 @@
-import asyncio
 import os
-import sys
-import traceback
-
-
+import datetime
 import aiohttp
-from aiohttp import web
-import cachetools
-from gidgethub import aiohttp as gh_aiohttp
-from gidgethub import routing
-from gidgethub import sansio
-from gidgethub import apps
 
-router = routing.Router()
-cache = cachetools.LRUCache(maxsize=500)
+from aiohttp import web
+
+from gidgethub import routing, sansio
+from gidgethub import aiohttp as gh_aiohttp
 
 routes = web.RouteTableDef()
 
-
-@routes.get("/", name="home")
-async def handle_get(request):
-    return web.Response(text="Hello PyLadies Tunis")
+router = routing.Router()
 
 
-@routes.post("/webhook")
-async def webhook(request):
-    try:
-        body = await request.read()
-        secret = os.environ.get("GH_SECRET")
-        event = sansio.Event.from_http(request.headers, body, secret=secret)
-        if event.event == "ping":
-            return web.Response(status=200)
-        async with aiohttp.ClientSession() as session:
-            gh = gh_aiohttp.GitHubAPI(session, "demo", cache=cache)
+@router.register("issues", action="opened")
+async def issue_opened_event(event, gh, *args, **kwargs):
+    """
+    Whenever an issue is opened, greet the author and say thanks.
+    """
+    url = event.data["issue"]["comments_url"]
+    author = event.data["issue"]["user"]["login"]
 
-            await asyncio.sleep(1)
-            await router.dispatch(event, gh)
-        try:
-            print("GH requests remaining:", gh.rate_limit.remaining)
-        except AttributeError:
-            pass
-        return web.Response(status=200)
-    except Exception as exc:
-        traceback.print_exc(file=sys.stderr)
-        return web.Response(status=500)
+    message = f"Thanks @{author}!\n\n\nI will report this to @k5924 ASAP!\n\n\nHeres a cookie: 🍪  -- Maid-Chan."
+    await gh.post(url, data={"body": message})
+
+    await rate_limit_comment(event, gh)
 
 
-@router.register("installation", action="created")
-async def repo_installation_added(event, gh, *args, **kwargs):
-    installation_id = event.data["installation"]["id"]
+async def rate_limit_comment(event, gh):
+    comments_url = event.data["pull_request"]["comments_url"]
+    rate_limit = gh.rate_limit
+    remaining = rate_limit.remaining
+    total = rate_limit.limit
+    reset_datetime = rate_limit.reset_datetime
 
-    installation_access_token = await apps.get_installation_access_token(
-        gh,
-        installation_id=installation_id,
-        app_id=os.environ.get("GH_APP_ID"),
-        private_key=os.environ.get("GH_PRIVATE_KEY")
-    )
-    repo_name = event.data["repositories"][0]["full_name"]
-    url = f"/repos/{repo_name}/issues"
-    response = await gh.post(
-        url,
-        data={
-            'title': 'Thanks for installing my bot',
-            'body': 'Thanks!',
-        },
-        oauth_token=installation_access_token["token"]
-    )
-    print(response)
+    if remaining <= 10:
+        message = f"\**:WARNING::WARNING::WARNING::WARNING::WARNING:WARNING**:\n\n\nMaid-Chan is reaching near my API limit.\nI have only {remaining} of {total} API requests left. They will reset on {reset_datetime} (GMT), which is in {reset_datetime - datetime.datetime.now(datetime.timezone.gmt)}\n\n\nCookies will OVERLOAD NOW: 🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪."
+    await gh.post(comments_url, data={"body": message})
 
 
-if __name__ == "__main__":  # pragma: no cover
+@router.register("pull_request", action="closed")
+async def pull_request_closed_event(event, gh, *args, **kwargs):
+    """
+    Whenever a pull request is closed, check if it has been merged or simply closed
+    """
+    url = event.data["pull_request"]["issue_url"]
+    pr_number = event.data["pull_request"]["number"]
+    message = f"Pull Request #{pr_number} was {event.data['action']}."
+    if not event.data['pull_request']['merged']:
+        message += "\n\n\nIt was closed without merging, skipping\n\n\n-- Maid-Chan"
+    else:
+        message += "\n\n\nIt was merged to the code base. Heres a cookie: 🍪\n\n\n-- Maid-Chan"
+    await gh.post(url, data={"body": message})
+
+    await rate_limit_comment(event, gh)
+
+
+@routes.post("/")
+async def main(request):
+    body = await request.read()
+
+    secret = os.environ.get("GH_SECRET")
+    oauth_token = os.environ.get("GH_AUTH")
+
+    event = sansio.Event.from_http(request.headers, body, secret=secret)
+    async with aiohttp.ClientSession() as session:
+        gh = gh_aiohttp.GitHubAPI(session, "k5924",
+                                  oauth_token=oauth_token)
+        await router.dispatch(event, gh)
+    return web.Response(status=200)
+
+
+if __name__ == "__main__":
     app = web.Application()
-
-    app.router.add_routes(routes)
+    app.add_routes(routes)
     port = os.environ.get("PORT")
     if port is not None:
         port = int(port)
+
     web.run_app(app, port=port)
