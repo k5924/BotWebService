@@ -2,7 +2,7 @@ import asyncio
 import os
 import sys
 import traceback
-import datetime
+
 
 import aiohttp
 from aiohttp import web
@@ -20,7 +20,7 @@ routes = web.RouteTableDef()
 
 @routes.get("/", name="home")
 async def handle_get(request):
-    return web.Response(text="Hello world")
+    return web.Response(text="Hello PyLadies Tunis")
 
 
 @routes.post("/webhook")
@@ -37,12 +37,7 @@ async def webhook(request):
             await asyncio.sleep(1)
             await router.dispatch(event, gh)
         try:
-            remaining = gh.rate_limit.remaining
-            total = gh.rate_limit.limit
-            reset_datetime = gh.rate_limit.reset_datetime
-            if remaining <= 10:
-                print(
-                    f"\**:WARNING::WARNING::WARNING::WARNING::WARNING:WARNING**:\n\n\nMaid-Chan is reaching near my API limit.\nI have only {remaining} of {total} API requests left. They will reset on {reset_datetime} (GMT), which is in {reset_datetime - datetime.datetime.now(datetime.timezone.gmt)}\n\n\nCookies will OVERLOAD NOW: 🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪🍪.")
+            print("GH requests remaining:", gh.rate_limit.remaining)
         except AttributeError:
             pass
         return web.Response(status=200)
@@ -54,86 +49,24 @@ async def webhook(request):
 @router.register("installation", action="created")
 async def repo_installation_added(event, gh, *args, **kwargs):
     installation_id = event.data["installation"]["id"]
-    installation_access_token = await apps.get_installation_access_token(
-        gh,
-        installation_id=installation_id,
-        app_id=os.environ.get("GH_APP_ID"),
-        private_key=os.environ.get("GH_PRIVATE_KEY"),
-    )
-    sender_name = event.data["sender"]["login"]
-
-    for repo in event.data["repositories"]:
-
-        repo_full_name = repo["full_name"]
-        response = await gh.post(
-            f"/repos/{repo_full_name}/issues",
-            data={
-                "title": "Thanks for installing me",
-                "body": f"You're the best! @{sender_name}\n\n-- Maid-Chan",
-            },
-            oauth_token=installation_access_token["token"],
-        )
-        issue_url = response["url"]
-        await gh.patch(
-            issue_url,
-            data={"state": "closed"},
-            oauth_token=installation_access_token["token"],
-        )
-
-
-@router.register("pull_request", action="opened")
-async def pr_opened(event, gh, *args, **kwargs):
-    issue_url = event.data["pull_request"]["issue_url"]
-    username = event.data["sender"]["login"]
-    installation_id = event.data["installation"]["id"]
 
     installation_access_token = await apps.get_installation_access_token(
         gh,
         installation_id=installation_id,
         app_id=os.environ.get("GH_APP_ID"),
-        private_key=os.environ.get("GH_PRIVATE_KEY"),
+        private_key=os.environ.get("GH_PRIVATE_KEY")
     )
-    author_association = event.data["pull_request"]["author_association"]
-    if author_association == "NONE":
-        # first time contributor
-        msg = f"Thanks for your first contribution @{username}\n\n\nHeres a cookie: 🍪\n\n\n-- Maid-Chan"
-    else:
-        # seasoned contributor
-        msg = f"Welcome back, @{username}. You are a {author_association}.\n\n\n-- Maid-Chan"
+    repo_name = event.data["repositories"][0]["full_name"]
+    url = f"/repos/{repo_name}/issues"
     response = await gh.post(
-        f"{issue_url}/comments",
-        data={"body": msg},
-        oauth_token=installation_access_token["token"],
+        url,
+        data={
+            'title': 'Thanks for installing my bot',
+            'body': 'Thanks!',
+        },
+        oauth_token=installation_access_token["token"]
     )
-
-    # add label
-    response = await gh.patch(
-        issue_url,
-        data={"labels": ["needs review"]},
-        oauth_token=installation_access_token["token"],
-    )
-
-
-@router.register("issue_comment", action="created")
-async def issue_comment_created(event, gh, *args, **kwargs):
-    username = event.data["sender"]["login"]
-    installation_id = event.data["installation"]["id"]
-
-    installation_access_token = await apps.get_installation_access_token(
-        gh,
-        installation_id=installation_id,
-        app_id=os.environ.get("GH_APP_ID"),
-        private_key=os.environ.get("GH_PRIVATE_KEY"),
-    )
-    comments_url = event.data["comment"]["url"]
-
-    if username == "k5924":
-        response = await gh.post(
-            f"{comments_url}/reactions",
-            data={"content": "heart"},
-            oauth_token=installation_access_token["token"],
-            accept="application/vnd.github.squirrel-girl-preview+json",
-        )
+    print(response)
 
 
 if __name__ == "__main__":  # pragma: no cover
