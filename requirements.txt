@@ -1,2 +1,5 @@
 aiohttp
-gidgethub
+gidgethub>=4.1.0
+PyJWT
+cryptography
+cachetools
